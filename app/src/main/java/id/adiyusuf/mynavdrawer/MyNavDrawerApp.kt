@@ -1,8 +1,6 @@
 package id.adiyusuf.mynavdrawer
 
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +12,6 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,44 +19,31 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import id.adiyusuf.mynavdrawer.ui.theme.MyNavDrawerTheme
-import kotlinx.coroutines.launch
 
 data class MenuItem(val title: String, val icon: ImageVector)
 
 @Composable
 fun MyNavDrawerApp(modifier: Modifier = Modifier) {
-    //drawer state
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val scope = rememberCoroutineScope()
-    //snackbar state
-    val snackbarHostState = remember { SnackbarHostState() }
-    //context
-    val context = LocalContext.current
+    val appState = rememberMyNavDrawerState()
     //drawer item
     val items = listOf(
         MenuItem(title = stringResource(R.string.home), icon = Icons.Default.Home),
@@ -69,30 +53,22 @@ fun MyNavDrawerApp(modifier: Modifier = Modifier) {
     //drawer item state
     var selectedItem by remember { mutableStateOf(items[0]) }
 
-    BackPressHandler(enable = drawerState.isOpen) {
-        scope.launch {
-            drawerState.close()
-        }
+    BackPressHandler(enable = appState.drawerState.isOpen) {
+        appState.onBackPress()
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(appState.snackbarHostState) },
         topBar = {
-            MyTopBar(onMenuClick = {
-                scope.launch {
-                    if (drawerState.isClosed) {
-                        drawerState.open()
-                    } else {
-                        drawerState.close()
-                    }
-                }
-            })
+            MyTopBar(
+                onMenuClick = appState::onMenuClick
+            )
         },
     ) { innerPadding ->
         ModalNavigationDrawer(
             modifier = Modifier.padding(innerPadding),
-            drawerState = drawerState,
-            gesturesEnabled = drawerState.isOpen,
+            drawerState = appState.drawerState,
+            gesturesEnabled = appState.drawerState.isOpen,
             drawerContent = {
                 ModalDrawerSheet {
                     Spacer(Modifier.height(12.dp))
@@ -102,27 +78,7 @@ fun MyNavDrawerApp(modifier: Modifier = Modifier) {
                             label = { Text(item.title) },
                             selected = item == selectedItem,
                             onClick = {
-                                scope.launch {
-                                    drawerState.close()
-
-                                    val snackbarResult = snackbarHostState.showSnackbar(
-                                        message = context.resources.getString(
-                                            R.string.coming_soon,
-                                            item.title
-                                        ),
-                                        actionLabel = context.resources.getString(R.string.subscribe_question),
-                                        withDismissAction = true,
-                                        duration = SnackbarDuration.Short
-                                    )
-
-                                    if (snackbarResult == SnackbarResult.ActionPerformed) {
-                                        Toast.makeText(
-                                            context,
-                                            context.resources.getString(R.string.subscribed_info),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
+                                appState.onItemSelect(item)
                                 selectedItem = item
                             },
                             modifier = Modifier.padding(horizontal = 12.dp)
@@ -135,7 +91,7 @@ fun MyNavDrawerApp(modifier: Modifier = Modifier) {
                 modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (drawerState.isClosed) {
+                    if (appState.drawerState.isClosed) {
                         stringResource(R.string.swipe_to_open)
                     } else {
                         stringResource(R.string.swipe_to_close)
@@ -151,7 +107,7 @@ fun BackPressHandler(
     enable: Boolean = true,
     onBackPressed: () -> Unit,
 ) {
-    val currentOnBackPressed by rememberUpdatedState(onBackPressed);
+    val currentOnBackPressed by rememberUpdatedState(onBackPressed)
 
     val backCallback = remember {
         object : OnBackPressedCallback(enable) {
@@ -178,7 +134,7 @@ fun BackPressHandler(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyTopBar(onMenuClick: () -> Unit, modifier: Modifier = Modifier) {
+fun MyTopBar(onMenuClick: () -> Unit) {
     TopAppBar(navigationIcon = {
         IconButton(onClick = onMenuClick) {
             Icon(
